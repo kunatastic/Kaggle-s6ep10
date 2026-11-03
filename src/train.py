@@ -16,9 +16,20 @@ p.add_argument("--seed", type=int, default=42)
 p.add_argument("--lr", type=float, default=0.03)
 p.add_argument("--orig", choices=["none", "te", "rows", "both"], default="none")
 p.add_argument("--pairs", choices=["top", "all"], default="top")
+p.add_argument("--leaves", type=int, default=63)
+p.add_argument("--min-child", type=int, default=100)
+p.add_argument("--colsample", type=float, default=0.5)
+p.add_argument("--l2", type=float, default=1.0)
+p.add_argument("--threads", type=int, default=0, help="0 = all cores")
+p.add_argument("--suffix", default="")
+p.add_argument("--triples", type=int, default=6, help="triples among the top-N PAIR_COLS (with --pairs all)")
+p.add_argument("--counts", action="store_true", help="add frequency counts for every encoded group")
+p.add_argument("--route", action="store_true", help="add per-Flight-Distance averages of ratings and age")
+p.add_argument("--orig-pred", action="store_true", help="add a LightGBM trained on the original dataset as a feature")
+p.add_argument("--extra", nargs="*", default=[], help="preds/<tag> OOF+test predictions to add as features (same folds)")
 args = p.parse_args()
 tag = f"{args.model}_{args.feats}_s{args.seed}" + ("" if args.orig == "none" else f"_orig{args.orig}") \
-    + ("" if args.pairs == "top" else "_allpairs")
+    + ("" if args.pairs == "top" else "_allpairs") + args.suffix
 use_orig_te, use_orig_rows = args.orig in ("te", "both"), args.orig in ("rows", "both")
 
 RATINGS = ["Inflight wifi service", "Departure/Arrival time convenient", "Ease of Online booking",
@@ -54,7 +65,7 @@ if args.feats == "te":
     # integer codes, not strings: 200+ string columns over 1.1M rows don't fit in 16 GB
     groups = [(c,) for c in raw_cols]
     if args.pairs == "all":
-        groups += list(itertools.combinations(raw_cols, 2)) + list(itertools.combinations(PAIR_COLS[:6], 3))
+        groups += list(itertools.combinations(raw_cols, 2)) + list(itertools.combinations(PAIR_COLS[:args.triples], 3))
     else:
         groups += list(itertools.combinations(PAIR_COLS, 2))
     single = {c: pd.factorize(df[c], use_na_sentinel=False)[0].astype(np.int64) for c in raw_cols}
@@ -66,6 +77,31 @@ if args.feats == "te":
         codes[:, i] = pd.factorize(k)[0]
     te_cols = ["|".join(g) for g in groups]
     as_str = pd.DataFrame(codes, columns=[f"c{i}" for i in range(len(groups))])
+
+    if args.counts:
+        cnt = np.empty((len(df), codes.shape[1]), np.float32)
+        for i in range(codes.shape[1]):
+            cnt[:, i] = np.bincount(codes[: n_tr + n_te, i], minlength=codes[:, i].max() + 1)[codes[:, i]]
+        df = pd.concat([df, pd.DataFrame(cnt, columns=[f"n_{i}" for i in range(codes.shape[1])])], axis=1)
+
+if args.route:
+    prof = df.iloc[: n_tr + n_te].groupby("Flight Distance")[RATINGS + ["Age"]].mean().add_prefix("route_")
+    prof["route_n"] = df.iloc[: n_tr + n_te].groupby("Flight Distance").size()
+    df = df.join(prof.astype(np.float32), on="Flight Distance")
+
+if args.orig_pred:
+    import lightgbm as lgb
+    Xr = df[raw_cols].astype({c: "category" for c in CATS})
+    o_idx = np.arange(n_tr + n_te, len(df))
+    fit = lambda idx: lgb.LGBMClassifier(n_estimators=600, learning_rate=0.03, num_leaves=63, verbose=-1,
+                                         n_jobs=args.threads or -1).fit(Xr.iloc[idx], y_orig[idx - n_tr - n_te])
+    op = np.empty(len(df), np.float32)
+    op[: n_tr + n_te] = fit(o_idx).predict_proba(Xr.iloc[: n_tr + n_te])[:, 1]
+    for a, b in StratifiedKFold(5, shuffle=True, random_state=0).split(o_idx, y_orig):
+        op[o_idx[b]] = fit(o_idx[a]).predict_proba(Xr.iloc[o_idx[b]])[:, 1]
+    df["orig_pred"] = op
+    from sklearn.metrics import roc_auc_score as _auc
+    print(f"orig_pred alone on competition train: {_auc(y, op[:n_tr]):.5f}", flush=True)
 
 if use_orig_te:
     assert te_cols, "--orig te needs --feats te"
@@ -87,6 +123,13 @@ if use_orig_te:
         parts.append(orig_rates(o_rows[a], o_rows[b]))
     df = pd.concat([df, pd.concat(parts).sort_index()], axis=1)
 
+for t in args.extra:
+    from scipy.special import logit
+    col = np.full(len(df), np.nan, np.float32)
+    col[:n_tr] = logit(np.clip(np.load(f"preds/{t}_oof.npy"), 1e-6, 1 - 1e-6))
+    col[n_tr: n_tr + n_te] = logit(np.clip(np.load(f"preds/{t}_test.npy"), 1e-6, 1 - 1e-6))
+    df[f"x_{t}"] = col
+
 for c in CATS:
     df[c] = df[c].astype("category")
 split = lambda d: [d.iloc[i:j].reset_index(drop=True) for i, j in ((0, n_tr), (n_tr, n_tr + n_te), (n_tr + n_te, len(d)))]
@@ -105,8 +148,9 @@ def add_te(Xs, a_idx):
 def fit_predict(Xa, ya, Xb, yb, Xt):
     if args.model == "lgb":
         import lightgbm as lgb
-        m = lgb.LGBMClassifier(n_estimators=20000, learning_rate=args.lr, num_leaves=63, min_child_samples=100,
-                               subsample=0.8, subsample_freq=1, colsample_bytree=0.5, reg_lambda=1.0,
+        m = lgb.LGBMClassifier(n_estimators=20000, learning_rate=args.lr, num_leaves=args.leaves,
+                               min_child_samples=args.min_child, subsample=0.8, subsample_freq=1,
+                               colsample_bytree=args.colsample, reg_lambda=args.l2, n_jobs=args.threads or -1,
                                random_state=args.seed, verbose=-1)
         m.fit(Xa, ya, eval_set=[(Xb, yb)], eval_metric="auc", callbacks=[lgb.early_stopping(200, verbose=False)])
         it = m.best_iteration_

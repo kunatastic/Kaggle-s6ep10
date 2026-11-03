@@ -10,8 +10,8 @@ from sklearn.model_selection import cross_val_predict
 
 y = pd.read_csv("train.csv", usecols=["satisfaction"]).satisfaction.astype(int).values
 ids = pd.read_csv("test.csv", usecols=["id"]).id
-pattern = sys.argv[1] if len(sys.argv) > 1 else "*"
-tags = sorted(p.name[:-8] for p in Path("preds").glob(f"{pattern}_oof.npy"))
+patterns = sys.argv[1:] or ["*"]
+tags = sorted({p.name[:-8] for pat in patterns for p in Path("preds").glob(f"{pat}_oof.npy")})
 
 
 def load(tag, kind):
