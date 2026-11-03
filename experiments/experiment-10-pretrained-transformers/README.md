@@ -61,3 +61,27 @@ uv run python src/train.py --model lgb --feats te --pairs all --triples 8 --coun
 - **It's the stack's largest member** (weight 0.40). The plain 5M drops to 0.09, since the pre-trained version supersedes it.
 - **Public 0.96199 is 0.00014 short of the top-10% cutoff (0.96213).** Private 0.96239 is above it.
 - Commands: `KAGGLE_SLUG=s6e10-gen5m-pre-{a,b}`, collected with `uv run python src/gen_collect.py gen_5mpre_s42 "kaggle_out/s6e10-gen5m-pre-[ab]/preds/gen"`.
+
+### Where 0.96239 ranks (full private leaderboard, 3,735 teams)
+
+| | Private | Rank |
+|---|---|---|
+| Winner | 0.96318 | 1 |
+| **Our best (stack + pre-trained 5M)** | **0.96239** | **~37–74** (38 teams tie at 0.96239) |
+| Top-10% cutoff | 0.96237 | 373 |
+| Our previous best (experiment 9) | 0.96215 | ~982 |
+
+- **495 teams sit between 0.96233 and 0.96238**, mostly near-identical blends of shared public predictions. Clearing that cluster by 0.00002 jumps hundreds of places, which is why +0.00024 private took us from about rank 982 to the top ~2%.
+- **The public board disagrees: 0.96199 against a 0.96213 cutoff.** The public split is only ~20% of the test set and is noisy at this level; the private board (~80%) is the final standing, and our private score has run above CV on every submission.
+- These are late submissions, so the ranks are where they *would* place.
+
+### 10M + pre-training (folds 2 + 3 so far)
+
+| Fold | Pre-trained 5M | 10M | Average of both |
+|---|---|---|---|
+| 2 | 0.96216 | 0.96210 | **0.96237** |
+| 3 | 0.96191 | 0.96222 | **0.96233** |
+
+- 10M alone is only about +0.0001 better than 5M (lower training loss, 1.1698 vs 1.1746, but similar held-out scores), so size has hit diminishing returns.
+- **Averaged with the pre-trained 5M it gains +0.0002 to +0.0004 per fold.** The two runs correlate 0.995 but make partly different mistakes.
+- LightGBM with the *pre-trained* 5M as a feature: OOF 0.96167, the same as with the plain 5M (0.96164), and the stack doesn't move (0.96205).
