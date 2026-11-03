@@ -71,3 +71,46 @@
 - **Target encoding did help, on every fold.** Treating each value, and each pair of values, as a category and replacing it with its out-of-fold satisfaction rate hands the model the non-additive interaction grid from the boarding × wifi chart in one feature. Trees would otherwise need many splits to approximate it.
 - To avoid leaking the target, the encoder is fitted only on the training part of each fold. sklearn's `TargetEncoder` also cross-fits within that part, so no row's encoding uses its own label.
 - LightGBM doesn't allow JSON special characters such as `:` in feature names, so the encoded columns are named `te_0…te_N`.
+
+## How the approach works
+
+### Why hand-made features didn't help but target encoding did
+
+**Hand-made features** (average rating, zero count, arrival minus departure delay) moved the score from 0.95892 to 0.95878, which is nothing. Decision trees ask yes/no questions such as "is Online boarding ≥ 4?". A few of those stacked together already approximate "average rating is high" or "several zeros", so these features told the model what it had already worked out.
+
+**Target encoding** replaces each value with the satisfaction rate seen for it in the training data:
+
+- `Online boarding = 5` becomes **0.88**, because 88% of passengers who gave that rating were satisfied.
+- The pair `boarding = 3 and wifi = 3` becomes **0.06**.
+- The pair `boarding = 1 and wifi = 4` becomes **0.81**.
+
+The pairs are what matter. Those combinations don't follow a "higher ratings mean happier" rule: the boarding × wifi grid jumps around. A tree needs many questions to carve out each cell, but one encoded feature states "this combination means 81% satisfied" directly. Encoding covers all 22 columns plus 45 pairs of the 10 strongest features, 94 features in total.
+
+**Avoiding leakage.** If a passenger's own label goes into the rate their encoding is computed from, the model is partly reading the answer: it looks excellent in validation and then fails on new data. The rates are therefore computed in folds, so each passenger's encoding comes only from *other* passengers. All 5 validation folds improved, which is good evidence the gain is real.
+
+### Why combine several models
+
+All three models are gradient-boosted trees: hundreds of small trees, each correcting the mistakes of the ones before. They grow those trees differently:
+
+| Model | How it grows trees | Effect |
+|---|---|---|
+| **LightGBM** | Always splits the single most useful leaf, so trees are deep and lopsided | Fast, good at sharp, narrow patterns |
+| **XGBoost** | Grows every branch one level at a time, so trees are balanced | More conservative, smoother patterns |
+| **CatBoost** | Asks the same question across a whole level (symmetric trees) and encodes categories its own way | Makes the most different mistakes |
+
+Each model is wrong on some passengers, but on *different* passengers. When two models confidently say "satisfied" and the third hesitates, the average usually lands closer to the truth than any single model.
+
+**Extra seeds.** LightGBM samples 80% of rows and 50% of features for each tree. A different random seed gives a slightly different model with the same strengths, and averaging several smooths out the luck of any one run. The gain is small (typically around +0.0002), but it costs only compute.
+
+### How the blend works (stacking)
+
+Averaging the predictions is the simplest blend. Stacking does better by learning how much to trust each model:
+
+1. During cross-validation, every model has already predicted each training passenger *while that passenger was held out*. These out-of-fold predictions are saved in `preds/`.
+2. A logistic regression takes those predictions as inputs and learns a weight for each model (for example LightGBM 0.5, CatBoost 0.3, XGBoost 0.2).
+3. It only ever sees held-out predictions, so it learns how the models behave on unseen data, which is what they face on the test set.
+4. The stack is scored with its own 5-fold cross-validation, and it's only submitted if it beats the best single model.
+
+### Where the ceiling is
+
+Blending usually adds 0.0005–0.001 over the best single model, so the expectation was about 0.961 from the 0.9603 LightGBM. The limit comes from the data, not the models: two passengers can give identical answers on every field, and one is satisfied while the other isn't. The synthetic generator adds noise like this, and noise can't be predicted. That's why the winner stopped at 0.9632 after weeks of work, and why 0.97 isn't reachable.
