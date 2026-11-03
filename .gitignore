@@ -5,3 +5,6 @@ preds/
 .venv/
 __pycache__/
 .DS_Store
+orig/
+catboost_info/
+logs/
