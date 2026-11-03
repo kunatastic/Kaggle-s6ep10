@@ -43,3 +43,13 @@ uv run kaggle datasets download -d arseniyshutko/binary-aviation-satisfaction-12
 On macOS, LightGBM and XGBoost need `brew install libomp`. Kaggle GPUs need a phone-verified account. Data, predictions (`preds/`) and Kaggle job folders are git-ignored.
 
 Every model uses the same folds, `StratifiedKFold(5, shuffle=True, random_state=42)`, so their out-of-fold predictions line up row by row for stacking.
+
+## Saved outputs
+
+Predictions for all 16 models, the transformer fold outputs, every submitted CSV and the training logs are backed up in the private Kaggle dataset [kunal20/s6ep10](https://www.kaggle.com/datasets/kunal20/s6ep10). Restore them and rebuild the best stack without retraining:
+
+```
+uv run kaggle datasets download -d kunal20/s6ep10 -p backup --unzip
+cp -R backup/preds preds
+uv run python src/blend.py "lgb_te_s42_allpairs*" "*_te_s42" "gen_*_s42"   # CV 0.96216 -> sub_blend.csv
+```
