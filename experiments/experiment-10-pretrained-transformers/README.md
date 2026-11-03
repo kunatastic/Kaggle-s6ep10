@@ -85,3 +85,23 @@ uv run python src/train.py --model lgb --feats te --pairs all --triples 8 --coun
 - 10M alone is only about +0.0001 better than 5M (lower training loss, 1.1698 vs 1.1746, but similar held-out scores), so size has hit diminishing returns.
 - **Averaged with the pre-trained 5M it gains +0.0002 to +0.0004 per fold.** The two runs correlate 0.995 but make partly different mistakes.
 - LightGBM with the *pre-trained* 5M as a feature: OOF 0.96167, the same as with the plain 5M (0.96164), and the stack doesn't move (0.96205).
+
+### 10M, all folds, and the final stack
+
+| Fold | Pre-trained 5M | **10M pre-trained** |
+|---|---|---|
+| 0 | 0.96172 | **0.96182** |
+| 1 | 0.96069 | **0.96078** |
+| 2 | 0.96216 | 0.96210 |
+| 3 | 0.96191 | **0.96222** |
+| 4 | 0.96139 | **0.96151** |
+| OOF | 0.96157 | **0.96168** |
+
+| Submission | CV | Public | Private |
+|---|---|---|---|
+| Stack + pre-trained 5M | 0.96206 | 0.96199 | 0.96239 |
+| **Stack + pre-trained 5M + 10M** | **0.96216** | **0.96208** | **0.96248** |
+
+- **Private 0.96248 ranks about 13 462 of 3,735 (top-10% cutoff 0.96237).** Public 0.96208 ranks about , just 0.00005 under its cutoff of 0.96213.
+- The 10M takes the largest stack weight (0.31), with the pre-trained 5M at 0.16. Two transformer runs together add +0.0001 CV over one.
+- The probe AUC in the logs varies about 0.004 between folds (fold 4 read 0.9638, folds 0–1 about 0.960). That's which 20k passengers the probe holds, not overfitting: it's held-out data, it never selects the epoch, and CV has tracked the leaderboard on every submission.
