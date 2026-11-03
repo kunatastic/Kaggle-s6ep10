@@ -18,7 +18,7 @@
 
 - LightGBM on the raw features with 5-fold stratified CV: **out-of-fold AUC 0.95892**. The folds range from 0.9577 to 0.9597.
 - First submission: **public 0.95836, private 0.95942**. The CV and leaderboard scores agree within about 0.0005, which confirms there's no meaningful drift between train and test.
-- Leaderboard context: the competition closed on 2026-10-31, and the top public score is 0.96318. The top 20 are all between 0.9625 and 0.9632, so about 0.963 is the practical ceiling and 0.97 isn't reachable on this data.
+- Leaderboard context: the competition closed on 2026-10-31 with 3,735 teams. On the **private** leaderboard (final standings) the winner scored 0.96318, and the top 20 are all between 0.9625 and 0.9632. On the **public** leaderboard the top score is 0.96473, but the top 3 public teams (0.9645–0.9647, 49–238 submissions each) aren't near the top of the private board: they overfit the public 20% of the test set. The public median is 0.95997, and top 10% needs 0.9622. Late submissions are scored but not ranked.
 
 ## Visual EDA (`figures.py`)
 
@@ -114,4 +114,4 @@ Averaging the predictions is the simplest blend. Stacking does better by learnin
 
 ### Where the ceiling is
 
-Blending usually adds 0.0005–0.001 over the best single model, so the expectation was about 0.961 from the 0.9603 LightGBM. The limit comes from the data, not the models: two passengers can give identical answers on every field, and one is satisfied while the other isn't. The synthetic generator adds noise like this, and noise can't be predicted. That's why the winner stopped at 0.9632 after weeks of work, and why 0.97 isn't reachable.
+Blending usually adds 0.0005–0.001 over the best single model, so the expectation was about 0.961 from the 0.9603 LightGBM. The limit comes from the data, not the models: two passengers can give identical answers on every field, and one is satisfied while the other isn't. The synthetic generator adds noise like this, and noise can't be predicted. That's why the private-leaderboard winner stopped at 0.9632 after weeks of work, and why 0.97 isn't reachable.
