@@ -14,22 +14,29 @@ p.add_argument("--model", choices=["lgb", "xgb", "cat"], default="lgb")
 p.add_argument("--feats", choices=["raw", "base", "te"], default="te")
 p.add_argument("--seed", type=int, default=42)
 p.add_argument("--lr", type=float, default=0.03)
+p.add_argument("--orig", choices=["none", "te", "rows", "both"], default="none")
+p.add_argument("--pairs", choices=["top", "all"], default="top")
 args = p.parse_args()
-tag = f"{args.model}_{args.feats}_s{args.seed}"
+tag = f"{args.model}_{args.feats}_s{args.seed}" + ("" if args.orig == "none" else f"_orig{args.orig}") \
+    + ("" if args.pairs == "top" else "_allpairs")
+use_orig_te, use_orig_rows = args.orig in ("te", "both"), args.orig in ("rows", "both")
 
 RATINGS = ["Inflight wifi service", "Departure/Arrival time convenient", "Ease of Online booking",
            "Gate location", "Food and drink", "Online boarding", "Seat comfort", "Inflight entertainment",
            "On-board service", "Leg room service", "Baggage handling", "Checkin service", "Cleanliness"]
 CATS = ["Gender", "Customer Type", "Type of Travel", "Class"]
 DEP, ARR = "Departure Delay in Minutes", "Arrival Delay in Minutes"
-# ponytail: fixed pair list from single-feature AUC ranking — search pairs by CV gain if this plateaus
 PAIR_COLS = ["Online boarding", "Inflight wifi service", "Type of Travel", "Class", "Customer Type",
              "Inflight entertainment", "Seat comfort", "Age", "Leg room service", "Ease of Online booking"]
 
 tr = pd.read_csv("train.csv")
 te = pd.read_csv("test.csv")
 y = tr.pop("satisfaction").astype(int).values
+orig = pd.read_csv("orig/data.csv")
+y_orig = orig.pop("satisfaction").astype(int).values
+n_tr, n_te = len(tr), len(te)
 df = pd.concat([tr, te], ignore_index=True).drop(columns="id")
+df = pd.concat([df, orig[df.columns]], ignore_index=True)
 raw_cols = list(df.columns)
 
 if args.feats != "raw":
@@ -44,24 +51,55 @@ if args.feats != "raw":
 
 te_cols = []
 if args.feats == "te":
-    as_str = df[raw_cols].astype(str)
-    for a, b in itertools.combinations(PAIR_COLS, 2):
-        as_str[f"{a}|{b}"] = as_str[a] + "_" + as_str[b]
-    te_cols = list(as_str.columns)
+    # integer codes, not strings: 200+ string columns over 1.1M rows don't fit in 16 GB
+    groups = [(c,) for c in raw_cols]
+    if args.pairs == "all":
+        groups += list(itertools.combinations(raw_cols, 2)) + list(itertools.combinations(PAIR_COLS[:6], 3))
+    else:
+        groups += list(itertools.combinations(PAIR_COLS, 2))
+    single = {c: pd.factorize(df[c], use_na_sentinel=False)[0].astype(np.int64) for c in raw_cols}
+    codes = np.empty((len(df), len(groups)), np.int32)
+    for i, g in enumerate(groups):
+        k = single[g[0]]
+        for c in g[1:]:
+            k = k * (single[c].max() + 1) + single[c]
+        codes[:, i] = pd.factorize(k)[0]
+    te_cols = ["|".join(g) for g in groups]
+    as_str = pd.DataFrame(codes, columns=[f"c{i}" for i in range(len(groups))])
+
+if use_orig_te:
+    assert te_cols, "--orig te needs --feats te"
+    o_rows = np.arange(n_tr + n_te, len(df))
+
+    def orig_rates(src, dst, m=10):
+        ys = y_orig[src - n_tr - n_te]
+        prior, out = ys.mean(), np.empty((len(dst), codes.shape[1]), np.float32)
+        for i in range(codes.shape[1]):
+            c = codes[:, i]
+            s = np.bincount(c[src], weights=ys, minlength=c.max() + 1)
+            n = np.bincount(c[src], minlength=c.max() + 1)
+            out[:, i] = ((s + m * prior) / (n + m))[c[dst]]
+        return pd.DataFrame(out, index=dst, columns=[f"o_{i}" for i in range(codes.shape[1])])
+
+    # original rows get cross-fitted rates so their own labels never feed their features
+    parts = [orig_rates(o_rows, np.arange(n_tr + n_te))]
+    for a, b in StratifiedKFold(5, shuffle=True, random_state=0).split(o_rows, y_orig):
+        parts.append(orig_rates(o_rows[a], o_rows[b]))
+    df = pd.concat([df, pd.concat(parts).sort_index()], axis=1)
 
 for c in CATS:
     df[c] = df[c].astype("category")
-X_all, T_all = df.iloc[: len(tr)].reset_index(drop=True), df.iloc[len(tr):].reset_index(drop=True)
+split = lambda d: [d.iloc[i:j].reset_index(drop=True) for i, j in ((0, n_tr), (n_tr, n_tr + n_te), (n_tr + n_te, len(d)))]
+X_all, T_all, X_orig = split(df)
 if te_cols:
-    S_all, ST_all = as_str.iloc[: len(tr)].reset_index(drop=True), as_str.iloc[len(tr):].reset_index(drop=True)
+    S_all, ST_all, S_orig = split(as_str)
 
 
-def add_te(Xa, Xb, Xt, a_idx, b_idx):
+def add_te(Xs, a_idx):
     enc = TargetEncoder(target_type="binary", cv=5, shuffle=True, random_state=args.seed)
     names = [f"te_{i}" for i in range(len(te_cols))]
-    ea = enc.fit_transform(S_all.iloc[a_idx], y[a_idx])
-    eb, et = enc.transform(S_all.iloc[b_idx]), enc.transform(ST_all)
-    return [pd.concat([X, pd.DataFrame(e, columns=names, index=X.index)], axis=1) for X, e in ((Xa, ea), (Xb, eb), (Xt, et))]
+    encoded = [enc.fit_transform(Xs[0][1], y[a_idx]).astype(np.float32)] + [enc.transform(S).astype(np.float32) for _, S in Xs[1:]]
+    return [pd.concat([X, pd.DataFrame(e, columns=names, index=X.index)], axis=1) for (X, _), e in zip(Xs, encoded)]
 
 
 def fit_predict(Xa, ya, Xb, yb, Xt):
@@ -94,10 +132,13 @@ def fit_predict(Xa, ya, Xb, yb, Xt):
 oof, pred = np.zeros(len(X_all)), np.zeros(len(T_all))
 t0 = time.time()
 for f, (a, b) in enumerate(StratifiedKFold(5, shuffle=True, random_state=42).split(X_all, y)):
-    Xa, Xb, Xt = X_all.iloc[a], X_all.iloc[b], T_all
+    Xa, Xb, Xt, Xo = X_all.iloc[a], X_all.iloc[b], T_all, X_orig
     if te_cols:
-        Xa, Xb, Xt = add_te(Xa, Xb, Xt, a, b)
-    oof[b], pt, it = fit_predict(Xa, y[a], Xb, y[b], Xt)
+        Xa, Xb, Xt, Xo = add_te([(Xa, S_all.iloc[a]), (Xb, S_all.iloc[b]), (Xt, ST_all), (Xo, S_orig)], a)
+    ya = y[a]
+    if use_orig_rows:
+        Xa, ya = pd.concat([Xa, Xo], ignore_index=True), np.concatenate([ya, y_orig])
+    oof[b], pt, it = fit_predict(Xa, ya, Xb, y[b], Xt)
     pred += pt / 5
     print(f"[{tag}] fold {f}: {roc_auc_score(y[b], oof[b]):.5f} @ {it}  ({time.time() - t0:.0f}s)", flush=True)
 

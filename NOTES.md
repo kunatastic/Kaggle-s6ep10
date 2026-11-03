@@ -115,3 +115,20 @@ Averaging the predictions is the simplest blend. Stacking does better by learnin
 ### Where the ceiling is
 
 Blending usually adds 0.0005–0.001 over the best single model, so the expectation was about 0.961 from the 0.9603 LightGBM. The limit comes from the data, not the models: two passengers can give identical answers on every field, and one is satisfied while the other isn't. The synthetic generator adds noise like this, and noise can't be predicted. That's why the private-leaderboard winner stopped at 0.9632 after weeks of work, and why 0.97 isn't reachable.
+
+## Models, blending and the original dataset
+
+| Experiment | OOF AUC | vs LightGBM te |
+|---|---|---|
+| LightGBM, target encoding | 0.96031 | |
+| XGBoost, target encoding | 0.96021 | −0.0001 |
+| CatBoost, target encoding | 0.96008 | −0.0002 |
+| Logistic-regression stack of all three | 0.96039 | +0.0001 |
+| LightGBM + original-data rates (`--orig te`) | 0.96028 | −0.0000 |
+| LightGBM + original rows in training (`--orig rows`, stopped after 3 folds) | ~0.9552 | −0.005 |
+
+- **The three models barely blend.** The stack's weights are LightGBM 0.57, CatBoost 0.30, XGBoost 0.14, but on the same features they make nearly the same mistakes, so stacking gains only +0.0001. Diversity has to come from different *features*, not different tree libraries.
+- **The original dataset doesn't transfer.**
+  - As rates, it adds nothing. Each original rate is strong on its own (boarding × wifi reaches 0.8948 AUC), but the competition's own encoding is computed from 560k rows per fold against 130k, so it already measures the same rates more precisely.
+  - As training rows, it hurts. Real passengers follow sharper rules than the noisy synthetic ones, so the model learns patterns that don't hold in the competition data. Early stopping fires after about 107 trees.
+- Memory: encoding 250 column groups as strings over 1.1M rows would need more than 10 GB, so groups are now stored as integer codes. The results are identical: the boarding rate's AUC is 0.8525 either way.
