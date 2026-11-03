@@ -8,3 +8,5 @@ __pycache__/
 orig/
 catboost_info/
 logs/
+kaggle_out/
+kaggle_jobs/
