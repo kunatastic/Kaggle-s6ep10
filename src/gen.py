@@ -27,6 +27,7 @@ p.add_argument("--batch", type=int, default=1024)
 p.add_argument("--lr", type=float, default=1e-3)
 p.add_argument("--orders", type=int, default=8, help="random column orders averaged when scoring")
 p.add_argument("--seed", type=int, default=42)
+p.add_argument("--pretrain", type=int, default=0, help="epochs on the original dataset before each fold's fine-tune")
 args = p.parse_args()
 torch.manual_seed(args.seed)
 rng = np.random.default_rng(args.seed)
@@ -46,6 +47,12 @@ tr = pd.read_csv(data + "train.csv")
 te = pd.read_csv(data + "test.csv")
 y = tr.pop("satisfaction").astype(int).values
 feats = pd.concat([tr, te], ignore_index=True).drop(columns="id")
+n_comp = len(feats)
+if args.pretrain:
+    orig_path = next(iter(glob.glob("/kaggle/input/**/data.csv", recursive=True)), "orig/data.csv")
+    orig = pd.read_csv(orig_path)
+    y_orig = orig.pop("satisfaction").astype(int).values
+    feats = pd.concat([feats, orig[feats.columns]], ignore_index=True)
 n_col = feats.shape[1]
 
 codes, offsets, V = [], [], 0
@@ -58,7 +65,9 @@ tokens = torch.tensor(np.stack(codes, axis=1), dtype=torch.long, device=dev)
 col_bias = torch.full((n_col, V), float("-inf"), device=dev)
 for i, (a, b) in enumerate(offsets):
     col_bias[i, a:b] = 0.0
-X, XT = tokens[: len(tr)], tokens[len(tr):]
+X, XT = tokens[: len(tr)], tokens[len(tr): n_comp]
+if args.pretrain:
+    XO, yo_t = tokens[n_comp:], torch.tensor(y_orig, device=dev)
 yt = torch.tensor(y, device=dev)
 prior_logit = math.log(y.mean() / (1 - y.mean()))
 
@@ -113,27 +122,32 @@ def run_fold(fold):
     probe = b_idx[rng.choice(len(b_idx), 20000, replace=False)]
 
     model = Gen(args.dim, args.layers).to(dev)
-    steps = args.epochs * math.ceil(len(a_idx) / args.batch)
-    opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.01)
-    sched = torch.optim.lr_scheduler.OneCycleLR(opt, args.lr, total_steps=steps, pct_start=0.05)
-    print(f"fold {fold}: {sum(p.numel() for p in model.parameters()) / 1e6:.2f}M params, vocab {V}, {steps} steps", flush=True)
-
+    print(f"fold {fold}: {sum(p.numel() for p in model.parameters()) / 1e6:.2f}M params, vocab {V}", flush=True)
     t0 = time.time()
-    for ep in range(args.epochs):
-        perm = a_t[torch.randperm(len(a_t), device=dev)]
-        total = 0.0
-        for i in range(0, len(perm), args.batch):
-            rows = perm[i: i + args.batch]
-            with amp():
-                loss = -model.log_probs(X[rows], yt[rows], random_orders(len(rows))).float().mean()
-            opt.zero_grad(set_to_none=True)
-            scaler.scale(loss).backward()
-            scaler.step(opt)
-            scaler.update()
-            sched.step()
-            total += loss.item() * len(rows)
-        auc = roc_auc_score(y[probe], score(model, X[torch.tensor(probe, device=dev)], 4))
-        print(f"epoch {ep}: loss {total / len(perm):.4f}  probe AUC {auc:.5f}  ({time.time() - t0:.0f}s)", flush=True)
+
+    def train(rows_all, labels, toks, epochs, name):
+        steps = epochs * math.ceil(len(rows_all) / args.batch)
+        opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.01)
+        sched = torch.optim.lr_scheduler.OneCycleLR(opt, args.lr, total_steps=steps, pct_start=0.05)
+        for ep in range(epochs):
+            perm = rows_all[torch.randperm(len(rows_all), device=dev)]
+            total = 0.0
+            for i in range(0, len(perm), args.batch):
+                rows = perm[i: i + args.batch]
+                with amp():
+                    loss = -model.log_probs(toks[rows], labels[rows], random_orders(len(rows))).float().mean()
+                opt.zero_grad(set_to_none=True)
+                scaler.scale(loss).backward()
+                scaler.step(opt)
+                scaler.update()
+                sched.step()
+                total += loss.item() * len(rows)
+            auc = roc_auc_score(y[probe], score(model, X[torch.tensor(probe, device=dev)], 4))
+            print(f"{name} epoch {ep}: loss {total / len(perm):.4f}  probe AUC {auc:.5f}  ({time.time() - t0:.0f}s)", flush=True)
+
+    if args.pretrain:
+        train(torch.arange(len(XO), device=dev), yo_t, XO, args.pretrain, "pretrain")
+    train(a_t, yt, X, args.epochs, "epoch")
 
     val = score(model, X[b_t], args.orders)
     print(f"fold {fold} AUC: {roc_auc_score(y[b_idx], val):.5f}  ({time.time() - t0:.0f}s)", flush=True)

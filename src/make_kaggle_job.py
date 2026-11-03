@@ -27,6 +27,7 @@ out.mkdir(parents=True, exist_ok=True)
     "enable_tpu": "false",
     "enable_internet": "false",
     "competition_sources": ["playground-series-s6e10"],
-    "dataset_sources": [], "kernel_sources": [], "model_sources": [],
+    "dataset_sources": ["arseniyshutko/binary-aviation-satisfaction-129k"] if "--pretrain" in extra else [],
+    "kernel_sources": [], "model_sources": [],
 }, indent=2))
 print(f"wrote {out}/ for folds {folds} {' '.join(extra)}")
