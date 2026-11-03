@@ -17,7 +17,7 @@
 | 7 | [Transformer 5M](experiments/experiment-07-transformer-5m/) | 0.96125 (stack 0.96176) | 0.96161 | 0.96205 | Beats trees; stack +0.0013 public |
 | 8 | [LightGBM tuning](experiments/experiment-08-lightgbm-tuning/) | 0.96097 | | | Saturated |
 | 9 | [Counts, triples, routes, original-data model](experiments/experiment-09-extended-features/) | 0.96125 (stack 0.96186) | 0.96176 | 0.96215 | +0.0003 trees |
-| 10 | [Pre-trained and larger transformers](experiments/experiment-10-pretrained-transformers/) | 0.96168 (stack 0.96216) | **0.96208** | **0.96248** | **Private top 10%** |
+| 10 | [Pre-trained and larger transformers](experiments/experiment-10-pretrained-transformers/) | 0.96168 (stack 0.96216) | **0.96208** | **0.96248** | **Private top 10% (~rank 13)** |
 
 ## Layout
 

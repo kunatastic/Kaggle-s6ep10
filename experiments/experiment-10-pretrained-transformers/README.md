@@ -1,4 +1,4 @@
-# Experiment 10: Pre-trained and larger transformers (in progress)
+# Experiment 10: Pre-trained and larger transformers
 
 **Goal:** push the transformer past the trees by pre-training on the original data, training longer and growing the model. Also test LightGBM with the transformer's prediction as a feature.
 
@@ -105,3 +105,10 @@ uv run python src/train.py --model lgb --feats te --pairs all --triples 8 --coun
 - **Private 0.96248 ranks about 13 462 of 3,735 (top-10% cutoff 0.96237).** Public 0.96208 ranks about , just 0.00005 under its cutoff of 0.96213.
 - The 10M takes the largest stack weight (0.31), with the pre-trained 5M at 0.16. Two transformer runs together add +0.0001 CV over one.
 - The probe AUC in the logs varies about 0.004 between folds (fold 4 read 0.9638, folds 0–1 about 0.960). That's which 20k passengers the probe holds, not overfitting: it's held-out data, it never selects the epoch, and CV has tracked the leaderboard on every submission.
+
+### Stopped here
+
+A second pre-trained 5M seed (seed 7) was started to close the last 0.00005 on the public board, then cancelled after 3 epochs; no more runs were needed. The likely next steps, if resumed:
+- 2–3 more transformer seeds (averaging the 5M and 10M runs gave +0.0002 to +0.0004 per fold), cheapest on rented RTX 4090s;
+- longer pre-training on the original data (we used 20 epochs; the winner found 60 clearly better than 8);
+- the label placed at a random position instead of first, as a diverse stack member.

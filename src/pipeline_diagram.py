@@ -43,12 +43,12 @@ def arrow(x1, y1, x2, y2, label=None, color=INK2):
 
 
 box(0.2, 2.5, 2.0, 1.5, "data", "Data", ["700K train", "300K test", "21 columns"])
-box(2.7, 2.5, 2.8, 1.5, "feat", "Features", ["target encoding, fold-safe:", "21 singles + 210 pairs", "+ 20 triples = 251 groups"])
-box(6.0, 2.5, 2.6, 1.5, "model", "Tree models", ["LightGBM  CV 0.96088", "XGBoost · CatBoost", "same 5 folds"])
+box(2.7, 2.5, 2.8, 1.5, "feat", "Features", ["fold-safe target encoding +", "counts: 21 singles, 210 pairs,", "56 triples · routes · orig_pred"])
+box(6.0, 2.5, 2.6, 1.5, "model", "Tree models", ["LightGBM  CV 0.96164", "(+ transformer as feature)", "XGBoost · CatBoost"])
 box(9.1, 2.0, 2.1, 1.5, "stack", "LR stack", ["logistic regression", "on out-of-fold logits"], light_text=True)
-box(11.7, 2.0, 2.1, 1.5, "result", "Best so far", ["public 0.96027", "private 0.96126", "(LightGBM alone)"], round_=0.5)
-box(2.7, 0.35, 5.9, 1.3, "gen", "Generative transformer  ·  in progress",
-    ["label first, then 21 value tokens in random order", "score = which label makes the row more likely  ·  M4 GPU"])
+box(11.7, 2.0, 2.1, 1.5, "result", "Best submission", ["public 0.96208", "private 0.96248", "(≈ rank 13 private)"], round_=0.5)
+box(2.7, 0.35, 5.9, 1.3, "gen", "Generative transformers  ·  5M + 10M  ·  OOF 0.96168",
+    ["label first, then 21 value tokens in random order; pre-trained on original data", "score = which label makes the row more likely  ·  Kaggle T4 ×2"])
 box(0.2, 0.35, 2.0, 1.3, "dropped", "Tried, dropped", ["130K original rows", "rows −0.005 · rates ±0"])
 
 arrow(2.2, 3.25, 2.7, 3.25)
@@ -59,7 +59,7 @@ arrow(8.6, 1.0, 9.1, 2.35, color=STEPS["gen"][1])
 ax.text(8.98, 1.45, "same 5 folds", ha="left", fontsize=8.5, color=INK2)
 arrow(0.7, 2.5, 0.7, 1.65, color=STEPS["dropped"][1])
 arrow(11.2, 2.75, 11.7, 2.75)
-ax.text(12.75, 1.7, "target: public 0.96213 (top 10%)", ha="center", fontsize=9, color=INK2)
+ax.text(12.75, 1.7, "top-10% cutoffs: private 0.96237 · public 0.96213", ha="center", fontsize=9, color=INK2)
 
 fig.tight_layout()
 fig.savefig("docs/pipeline.png", dpi=150, facecolor=SURFACE)
