@@ -2,7 +2,7 @@
 
 ## EDA (`eda.py`)
 
-- 699,635 train rows, 299,844 test rows, 22 features. 44.4% of passengers are satisfied, so the classes are close to balanced.
+- 699,635 train rows, 299,844 test rows, 21 features (13 ratings, age, flight distance, 2 delays, 4 categorical). 44.4% of passengers are satisfied, so the classes are close to balanced.
 - The only missing values are in `Arrival Delay in Minutes` (292 train, 130 test).
 - No duplicate rows. Train and test match closely: the largest gap in any feature's mean is 0.004 standard deviations, so a random stratified K-fold split should track the leaderboard.
 - There are 13 survey ratings on a 0–5 scale. A 0 most likely means "not rated": `Baggage handling` never has a 0.
@@ -65,7 +65,7 @@
 |---|---|---|
 | raw (baseline) | 0.95892 | |
 | + rating stats, zero count, delay diff/max (`--feats base`) | 0.95878 | −0.0001 |
-| + target encoding of all 22 columns and 45 pairs of the top 10 (`--feats te`) | **0.96031** | **+0.0014** |
+| + target encoding of all 21 columns and 45 pairs of the top 10 (`--feats te`) | **0.96031** | **+0.0014** |
 
 - On Kaggle, target encoding scored **public 0.95982, private 0.96073**, up from 0.95836 / 0.95942. That's +0.0015 / +0.0013, matching the CV gain.
 - **Hand-made aggregates didn't help.** Trees already learn rating sums, zero counts and delay gaps through splits, so writing those features by hand only adds noise.
@@ -85,7 +85,7 @@
 - The pair `boarding = 3 and wifi = 3` becomes **0.06**.
 - The pair `boarding = 1 and wifi = 4` becomes **0.81**.
 
-The pairs are what matter. Those combinations don't follow a "higher ratings mean happier" rule: the boarding × wifi grid jumps around. A tree needs many questions to carve out each cell, but one encoded feature states "this combination means 81% satisfied" directly. Encoding covers all 22 columns plus 45 pairs of the 10 strongest features, 94 features in total.
+The pairs are what matter. Those combinations don't follow a "higher ratings mean happier" rule: the boarding × wifi grid jumps around. A tree needs many questions to carve out each cell, but one encoded feature states "this combination means 81% satisfied" directly. Encoding covers all 21 columns plus 45 pairs of the 10 strongest features: 66 encoded features, 94 in total.
 
 **Avoiding leakage.** If a passenger's own label goes into the rate their encoding is computed from, the model is partly reading the answer: it looks excellent in validation and then fails on new data. The rates are therefore computed in folds, so each passenger's encoding comes only from *other* passengers. All 5 validation folds improved, which is good evidence the gain is real.
 
