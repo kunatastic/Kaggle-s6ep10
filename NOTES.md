@@ -171,3 +171,19 @@ The approach copies the winner's idea at a much smaller scale. Each passenger be
 - **The probe was still rising at epoch 8**, from 0.9505 to 0.9564, so v1 is undertrained.
 - **It barely adds to the stack** (+0.00005). Its predictions correlate 0.979 with the trees' (on logits), and it scores 0.003 below the best tree model, so the stack gives it only 10% of the weight. A generative model helps a stack only when it's both strong and different. The winner's pretrained GPT-2 scored 0.9624, *above* the trees, which is why it carried their stack.
 - Next: a 5M model (192 × 6 layers, 20 epochs, 16 scoring orders) is running on Kaggle.
+
+## Transformer 5M: the strongest single model
+
+| Model | OOF AUC | Public | Private |
+|---|---|---|---|
+| Transformer 5M: 192 × 6 layers, 4.24M params, 20 epochs, 16 scoring orders | **0.96125** | | |
+| LightGBM all-pairs tuned (t1: 127 leaves, colsample 0.3, L2 5, lr 0.02) | 0.96097 | | |
+| LR stack: 8 tree models + transformers | **0.96176** | **0.96161** | **0.96205** |
+| CatBoost stacker on the same predictions + Class / trip type / loyalty | 0.96178 | | |
+
+- **Scaling the transformer up was the biggest single win since target encoding.** v1 (1.8M params, 8 epochs) scored 0.95790. 5M with 20 epochs scored 0.96125 and beat the best tree model on every fold. Training loss kept falling through epoch 20 (1.50 → 1.18).
+- **The probe underestimates.** Per-epoch probes use 4 orders on 20k rows and read about 0.959. The full score, with 16 orders on 140k rows, is about 0.961. Averaging more column orders matters.
+- **The stack finally works.** The transformer takes 52% of the weight, and the stack gains +0.0007 over trees alone, a leaderboard gain of +0.0013 (public 0.96035 → 0.96161). Its predictions still correlate 0.989 with the trees, but it's now the stronger model, so the stack leans on it.
+- **The stacker choice doesn't matter.** A CatBoost stacker with segment columns ties logistic regression (0.96178 vs 0.96176), so the simpler LR stays.
+- **Tree tuning is saturated.** Three LightGBM tuning trials ranged 0.96086–0.96097 against the 0.96088 baseline.
+- Public 0.96161 would rank about 1,049 of 3,735. The top-10% cutoff (0.96213) is still 0.0005 away.

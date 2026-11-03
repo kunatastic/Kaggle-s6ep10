@@ -16,9 +16,15 @@ p.add_argument("--seed", type=int, default=42)
 p.add_argument("--lr", type=float, default=0.03)
 p.add_argument("--orig", choices=["none", "te", "rows", "both"], default="none")
 p.add_argument("--pairs", choices=["top", "all"], default="top")
+p.add_argument("--leaves", type=int, default=63)
+p.add_argument("--min-child", type=int, default=100)
+p.add_argument("--colsample", type=float, default=0.5)
+p.add_argument("--l2", type=float, default=1.0)
+p.add_argument("--threads", type=int, default=0, help="0 = all cores")
+p.add_argument("--suffix", default="")
 args = p.parse_args()
 tag = f"{args.model}_{args.feats}_s{args.seed}" + ("" if args.orig == "none" else f"_orig{args.orig}") \
-    + ("" if args.pairs == "top" else "_allpairs")
+    + ("" if args.pairs == "top" else "_allpairs") + args.suffix
 use_orig_te, use_orig_rows = args.orig in ("te", "both"), args.orig in ("rows", "both")
 
 RATINGS = ["Inflight wifi service", "Departure/Arrival time convenient", "Ease of Online booking",
@@ -105,8 +111,9 @@ def add_te(Xs, a_idx):
 def fit_predict(Xa, ya, Xb, yb, Xt):
     if args.model == "lgb":
         import lightgbm as lgb
-        m = lgb.LGBMClassifier(n_estimators=20000, learning_rate=args.lr, num_leaves=63, min_child_samples=100,
-                               subsample=0.8, subsample_freq=1, colsample_bytree=0.5, reg_lambda=1.0,
+        m = lgb.LGBMClassifier(n_estimators=20000, learning_rate=args.lr, num_leaves=args.leaves,
+                               min_child_samples=args.min_child, subsample=0.8, subsample_freq=1,
+                               colsample_bytree=args.colsample, reg_lambda=args.l2, n_jobs=args.threads or -1,
                                random_state=args.seed, verbose=-1)
         m.fit(Xa, ya, eval_set=[(Xb, yb)], eval_metric="auc", callbacks=[lgb.early_stopping(200, verbose=False)])
         it = m.best_iteration_
