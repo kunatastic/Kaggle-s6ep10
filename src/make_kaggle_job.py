@@ -6,7 +6,7 @@ from pathlib import Path
 folds = sys.argv[1] if len(sys.argv) > 1 else "1,2,3,4"
 extra = " ".join(sys.argv[2:]).split()
 slug = os.environ.get("KAGGLE_SLUG", "s6e10-generative-transformer")
-src = Path("gen.py").read_text()
+src = Path("src/gen.py").read_text()
 job = f'''import subprocess, sys
 open("/kaggle/working/gen.py", "w").write({src!r})
 cmd = [sys.executable, "-u", "/kaggle/working/gen.py", "--folds", "{folds}", "--out", "/kaggle/working/preds/gen", *{extra!r}]

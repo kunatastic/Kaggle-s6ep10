@@ -18,8 +18,8 @@ plt.rcParams.update({
     "axes.spines.top": False, "axes.spines.right": False, "font.size": 10, "axes.titlesize": 11,
     "axes.titleweight": "bold", "axes.titlelocation": "left", "lines.linewidth": 2,
 })
-OUT = Path("figures")
-OUT.mkdir(exist_ok=True)
+OUT = Path("experiments/experiment-01-eda-baseline/figures")
+OUT.mkdir(parents=True, exist_ok=True)
 
 RATINGS = ["Online boarding", "Inflight entertainment", "Seat comfort", "On-board service", "Cleanliness",
            "Leg room service", "Inflight wifi service", "Baggage handling", "Checkin service", "Food and drink",

@@ -62,4 +62,4 @@ arrow(11.2, 2.75, 11.7, 2.75)
 ax.text(12.75, 1.7, "target: public 0.96213 (top 10%)", ha="center", fontsize=9, color=INK2)
 
 fig.tight_layout()
-fig.savefig("figures/pipeline.png", dpi=150, facecolor=SURFACE)
+fig.savefig("docs/pipeline.png", dpi=150, facecolor=SURFACE)

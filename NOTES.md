@@ -2,9 +2,9 @@
 
 ## Pipeline
 
-![Our pipeline](figures/pipeline.png)
+![Our pipeline](docs/pipeline.png)
 
-Regenerate with `uv run python pipeline_diagram.py`. It shows the current state: tree models on target-encoded singles, pairs and triples, a generative transformer branch in progress, and the original dataset tried and dropped.
+Regenerate with `uv run python src/pipeline_diagram.py`. It shows the current state: tree models on target-encoded singles, pairs and triples, a generative transformer branch in progress, and the original dataset tried and dropped.
 
 ## EDA (`eda.py`)
 
@@ -29,7 +29,7 @@ Regenerate with `uv run python pipeline_diagram.py`. It shows the current state:
 ## Visual EDA (`figures.py`)
 
 ### A 0 rating isn't a bad rating
-![Share satisfied at each rating value](figures/rating_heatmap.png)
+![Share satisfied at each rating value](experiments/experiment-01-eda-baseline/figures/rating_heatmap.png)
 
 - Most ratings rise steadily from 1 to 5. `Online boarding` has the biggest range, from about 10% satisfied at ratings 1–3 to 88% at 5.
 - **A 0 behaves nothing like a 1.** Passengers who gave wifi a 0 are 89% satisfied, and 0 on online booking or boarding gives 71% and 62%. In the original survey, 0 most likely means the service didn't apply (for example, no wifi on the flight). It's a separate category, not the bottom of the scale.
@@ -37,7 +37,7 @@ Regenerate with `uv run python pipeline_diagram.py`. It shows the current state:
 - `Departure/Arrival time convenient` is flat at 40–51% and slightly *negatively* related to satisfaction. `Gate location` is U-shaped. Neither works as a plain ordered rating.
 
 ### Segments interact
-![Share satisfied by trip type, loyalty and class](figures/segments.png)
+![Share satisfied by trip type, loyalty and class](experiments/experiment-01-eda-baseline/figures/segments.png)
 
 - Loyal passengers on business trips in Business class are **79%** satisfied. Change only the class to Eco or Eco Plus and that drops to about 40%.
 - Personal-travel passengers are about 10% satisfied **whatever their class**: paying for Business doesn't help them.
@@ -45,21 +45,21 @@ Regenerate with `uv run python pipeline_diagram.py`. It shows the current state:
 - The effect of one segment column depends on the others, which is why pair features are worth trying.
 
 ### Age and distance only matter for business trips
-![Share satisfied by age and distance](figures/age_distance.png)
+![Share satisfied by age and distance](experiments/experiment-01-eda-baseline/figures/age_distance.png)
 
 - For business travellers, satisfaction climbs with age to a plateau of about 75% at ages 40–58, then **collapses past 60** to about 20%. A single split can't capture that shape, so trees need several.
 - Business travellers jump from about 42% to about 75% satisfied once flights pass ~1,200 miles, which probably reflects long-haul service.
 - For personal travellers, both lines stay flat at about 10%.
 
 ### Delays mostly don't matter
-![Share satisfied by delay](figures/delays.png)
+![Share satisfied by delay](experiments/experiment-01-eda-baseline/figures/delays.png)
 
 - 91% of flights have no departure delay, so delay can't explain much overall.
 - Even long delays only lower satisfaction from 45% to about 30%. Arrival delay has its effect earlier (from 6 minutes) than departure delay.
 - The two delay columns are highly correlated (r = 0.84).
 
 ### The top two ratings interact strongly
-![Online boarding x wifi](figures/boarding_wifi.png)
+![Online boarding x wifi](experiments/experiment-01-eda-baseline/figures/boarding_wifi.png)
 
 - A **wifi rating of 5 gives 92–96% satisfaction whatever the boarding rating**, and a wifi rating of 0 behaves almost the same way.
 - In the middle, the two ratings combine in non-additive ways: boarding 3 with wifi 3 is only 6%, while boarding 1 with wifi 4 is 81%.
