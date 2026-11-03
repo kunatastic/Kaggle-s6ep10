@@ -1,0 +1,7 @@
+# Kaggle data: competition rules forbid redistribution
+*.csv
+*.npy
+preds/
+.venv/
+__pycache__/
+.DS_Store
