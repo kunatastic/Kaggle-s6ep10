@@ -58,3 +58,16 @@
 - A **wifi rating of 5 gives 92–96% satisfaction whatever the boarding rating**, and a wifi rating of 0 behaves almost the same way.
 - In the middle, the two ratings combine in non-additive ways: boarding 3 with wifi 3 is only 6%, while boarding 1 with wifi 4 is 81%.
 - Patterns like these are what target-encoding feature pairs is meant to capture.
+
+## Feature pipeline (`train.py`)
+
+| Features | LightGBM OOF AUC | Change |
+|---|---|---|
+| raw (baseline) | 0.95892 | |
+| + rating stats, zero count, delay diff/max (`--feats base`) | 0.95878 | −0.0001 |
+| + target encoding of all 22 columns and 45 pairs of the top 10 (`--feats te`) | **0.96031** | **+0.0014** |
+
+- **Hand-made aggregates didn't help.** Trees already learn rating sums, zero counts and delay gaps through splits, so writing those features by hand only adds noise.
+- **Target encoding did help, on every fold.** Treating each value, and each pair of values, as a category and replacing it with its out-of-fold satisfaction rate hands the model the non-additive interaction grid from the boarding × wifi chart in one feature. Trees would otherwise need many splits to approximate it.
+- To avoid leaking the target, the encoder is fitted only on the training part of each fold. sklearn's `TargetEncoder` also cross-fits within that part, so no row's encoding uses its own label.
+- LightGBM doesn't allow JSON special characters such as `:` in feature names, so the encoded columns are named `te_0…te_N`.
