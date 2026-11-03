@@ -67,6 +67,7 @@
 | + rating stats, zero count, delay diff/max (`--feats base`) | 0.95878 | −0.0001 |
 | + target encoding of all 22 columns and 45 pairs of the top 10 (`--feats te`) | **0.96031** | **+0.0014** |
 
+- On Kaggle, target encoding scored **public 0.95982, private 0.96073**, up from 0.95836 / 0.95942. That's +0.0015 / +0.0013, matching the CV gain.
 - **Hand-made aggregates didn't help.** Trees already learn rating sums, zero counts and delay gaps through splits, so writing those features by hand only adds noise.
 - **Target encoding did help, on every fold.** Treating each value, and each pair of values, as a category and replacing it with its out-of-fold satisfaction rate hands the model the non-additive interaction grid from the boarding × wifi chart in one feature. Trees would otherwise need many splits to approximate it.
 - To avoid leaking the target, the encoder is fitted only on the training part of each fold. sklearn's `TargetEncoder` also cross-fits within that part, so no row's encoding uses its own label.
