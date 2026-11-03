@@ -23,7 +23,7 @@ uv run python src/train.py --model lgb --feats te --pairs all --triples 8 --coun
 | Model | Fold 2 | Fold 3 | OOF |
 |---|---|---|---|
 | Transformer 5M, 20 epochs (experiment 7) | 0.96192 | 0.96163 | 0.96125 |
-| **5M + pre-training, 30 epochs** | **0.96216** | **0.96191** | running |
+| **5M + pre-training, 30 epochs** | **0.96216** | **0.96191** | **0.96157** |
 | 10M + pre-training, 30 epochs | running | running | |
 | LightGBM extended features + 5M as a feature | 0.96231 | 0.96190 | **0.96164** |
 
@@ -40,3 +40,24 @@ uv run python src/train.py --model lgb --feats te --pairs all --triples 8 --coun
 
 - **Best single model so far (+0.0004 over either input, every fold).** LightGBM learns *where* to trust the transformer: it can lean on it in some segments and on the pair encodings in others, which a single stack weight can't.
 - **The stack doesn't move (0.96186 → 0.96186).** The combined model already contains the transformer's signal, so stacking it next to the transformer adds nothing new; the weight just redistributes (transformer 0.36, combined LightGBM 0.33, plain extended LightGBM 0.40). Combining models inside one learner and combining them in the stack are two routes to the same gain, not two separate gains.
+
+### Pre-trained 5M, all folds
+
+| Fold | 5M, 20 epochs | **5M + pre-training, 30 epochs** |
+|---|---|---|
+| 0 | 0.96150 | **0.96172** |
+| 1 | 0.96029 | **0.96069** |
+| 2 | 0.96192 | **0.96216** |
+| 3 | 0.96163 | **0.96191** |
+| 4 | 0.96095 | **0.96139** |
+| OOF | 0.96125 | **0.96157** |
+
+| Submission | CV | Public | Private |
+|---|---|---|---|
+| Previous best stack (experiment 9) | 0.96186 | 0.96176 | 0.96215 |
+| **Stack + pre-trained 5M** | **0.96206** | **0.96199** | **0.96239** |
+
+- **Pre-training on the original data plus 30 epochs: +0.0003 single-model OOF, every fold better.** The pre-trained run starts from a model that already knows how real passengers' answers relate, then adapts to the synthetic data.
+- **It's the stack's largest member** (weight 0.40). The plain 5M drops to 0.09, since the pre-trained version supersedes it.
+- **Public 0.96199 is 0.00014 short of the top-10% cutoff (0.96213).** Private 0.96239 is above it.
+- Commands: `KAGGLE_SLUG=s6e10-gen5m-pre-{a,b}`, collected with `uv run python src/gen_collect.py gen_5mpre_s42 "kaggle_out/s6e10-gen5m-pre-[ab]/preds/gen"`.
