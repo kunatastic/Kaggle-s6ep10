@@ -1,5 +1,11 @@
 # Learning log
 
+## Pipeline
+
+![Our pipeline](figures/pipeline.png)
+
+Regenerate with `uv run python pipeline_diagram.py`. It shows the current state: tree models on target-encoded singles, pairs and triples, a generative transformer branch in progress, and the original dataset tried and dropped.
+
 ## EDA (`eda.py`)
 
 - 699,635 train rows, 299,844 test rows, 21 features (13 ratings, age, flight distance, 2 delays, 4 categorical). 44.4% of passengers are satisfied, so the classes are close to balanced.
